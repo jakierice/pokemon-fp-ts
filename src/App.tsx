@@ -38,27 +38,30 @@ export default function App() {
     setRandomPokemonId(O.some(Math.floor(Math.random() * 100) + 1));
 
   React.useEffect(() => {
-    setPokemonDetails(RD.pending);
-
     pipe(
       randomPokemonId,
-      TE.fromOption(
-        () =>
-          "Throw your first Pokeball by clicking the button to catch a random Pokemon!"
-      ),
-      TE.chain((randomId) =>
-        TE.tryCatch(
-          () => axios.get(`https://pokeapi.co/api/v2/pokemon/${randomId}`),
-          (error) => `Request failed with error: ${error}`
-        )
-      ),
-      TE.map(({ data }) => data),
-      TE.chainEitherK(flow(pokemonDetailsD.decode, E.mapLeft(D.draw))),
-      TE.match(
-        flow(RD.failure, setPokemonDetails),
-        flow(RD.success, setPokemonDetails)
+      O.match(
+        () => setPokemonDetails(RD.initial),
+        (randomId) => {
+          pipe(
+            TE.right(() => setPokemonDetails(RD.pending)),
+            TE.chain(() =>
+              TE.tryCatch(
+                () =>
+                  axios.get(`https://pokeapi.co/api/v2/pokemon/${randomId}`), // API Docs: https://pokeapi.co/docs/v2#info
+                (error) => `Request failed with error: ${error}`
+              )
+            ),
+            TE.map(({ data }) => data),
+            TE.chainEitherK(flow(pokemonDetailsD.decode, E.mapLeft(D.draw))),
+            TE.match(
+              flow(RD.failure, setPokemonDetails),
+              flow(RD.success, setPokemonDetails)
+            )
+          )();
+        }
       )
-    )();
+    );
   }, [randomPokemonId]);
 
   return (
@@ -76,15 +79,13 @@ export default function App() {
       {pipe(
         pokemonDetails,
         RD.fold(
-          () => <></>,
           () => (
-            <ThreeDots
-              type="ThreeDots"
-              color="#00BFFF"
-              height={80}
-              width={80}
-            />
+            <p>
+              Throw your first Pokeball by clicking the button to catch a random
+              Pokemon!
+            </p>
           ),
+          () => <ThreeDots color="#00BFFF" height={80} width={80} />,
           (error) => <pre>{error}</pre>,
           (details) => (
             <div className="pokemon">
